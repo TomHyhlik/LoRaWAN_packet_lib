@@ -1,10 +1,3 @@
-/*
- * LoRaWAN_packet.c
- *
- *  Created on: Jul 3, 2018
- *      Author: hyhlik
- */
-
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
@@ -73,27 +66,24 @@ LoRaWAN_packet LWp_analyze(uint8_t* packet, uint8_t packet_len)
 	if((p.PHY.MAC.FHDR.FCtrl & 0x80) == 0x80) p.adr = 1; else p.adr =  0;
 
 	/* Mtype - obtained from MHDR */
-	Mtype_t Mtype = p.PHY.MHDR >> 5;
-	switch(Mtype)
+	p.Mtype = (p.PHY.MHDR >> 5) & 7;
+	switch(p.Mtype)
 	{
 		case Unconfirmed_Data_Up:
-			p.direction = 0;
-			break;
-		case Unconfirmed_Data_Down:
-			p.direction = 1;
-			break;
 		case Confirmed_Data_Up:
 			p.direction = 0;
 			break;
+		case Unconfirmed_Data_Down:
 		case Confirmed_Data_Down:
 			p.direction = 1;
+		case Join_request:
+		case Join_accept:
+		case Rejoin_request:
+		case Proprietary:
+			break;
 	}
 	
 
-	// if((p.PHY.MHDR & 0x40) == 0x40 || (p.PHY.MHDR & 0x80) == 0x80)    // direction UP
-	// 	p.direction = 0;
-	// else if((p.PHY.MHDR & 0x60) == 0x60 || (p.PHY.MHDR & 0xa0) == 0xa0)    // direction DOWN
-	// 	p.direction = 1;
 
 	/* appMessage is the same length as the ten of encrypted payload */
 	p.appMessage_len = p.PHY.MAC.FRMPayload_len;
@@ -111,7 +101,7 @@ LoRaWAN_packet LWp_analyze(uint8_t* packet, uint8_t packet_len)
  * 		calculate MIC and add it to the rawData payload. Return the packet structure.
  * 		the payload array p->rawData can be now sent via LoRa RF interface
  */
-LoRaWAN_packet LWp_make(uint8_t* data, uint8_t data_len, LoRaWAN_node* n)
+LoRaWAN_packet LWp_make(uint8_t* data, uint8_t data_len, LoRaWAN_node* n, Mtype_t mtype)
 {
 	LoRaWAN_packet p;
 
@@ -125,27 +115,46 @@ LoRaWAN_packet LWp_make(uint8_t* data, uint8_t data_len, LoRaWAN_node* n)
 
 	/* FHDR */
 	memcpy(p.PHY.MAC.FHDR.devAddr, n->devAddr, SIZE_DEVADDR);
-	p.PHY.MAC.FHDR.FCtrl = 0xc0;
-	p.PHY.MAC.FHDR.FCnt = 150;
+	p.PHY.MAC.FHDR.FCtrl = 0x40;
+	if (n->adr) {
+		p.PHY.MAC.FHDR.FCtrl |= 0x80;
+	}
+	if (n->ack) {
+		p.PHY.MAC.FHDR.FCtrl |= 0x20;
+	}
+	p.PHY.MAC.FHDR.FCnt = n->FCnt++;		// !! incrementing frame counter !!
 	p.PHY.MAC.FHDR.FOpts = NULL;
 	p.PHY.MAC.FHDR.FOpts_len = 0;
 	/* MAC */
 	p.PHY.MAC.FPort = 0x08;
 	p.PHY.MAC.FRMPayload_len = data_len;
 	/* PHY */
-	p.PHY.MHDR = 0x40;
-
-	/* get durectuion frmo MHDR */
-	if((p.PHY.MHDR & 0x40) == 0x40 || (p.PHY.MHDR & 0x80) == 0x80)    // direction UP
+	p.Mtype = mtype;
+	p.PHY.MHDR = (0x00 | (p.Mtype << 5));
+	switch(p.Mtype)
+	{
+	case Unconfirmed_Data_Up:
+	case Confirmed_Data_Up:
 		p.direction = 0;
-	else if((p.PHY.MHDR & 0x60) == 0x60 || (p.PHY.MHDR & 0xa0) == 0xa0)    // direction DOWN
+		break;
+	case Unconfirmed_Data_Down:
+	case Confirmed_Data_Down:
 		p.direction = 1;
+	case Join_accept:
+	case Rejoin_request:
+	case Proprietary:
+	case Join_request:
+		break;	
+	}
+
+	if((p.PHY.MAC.FHDR.FCtrl & 0x20) == 0x20) p.ack = 1; else p.ack = 0;
+	if((p.PHY.MAC.FHDR.FCtrl & 0x80) == 0x80) p.adr = 1; else p.adr =  0;
 
 	/* frame payload (encrypted message) */
 	p.PHY.MAC.FRMPayload = malloc(data_len);
 	if(p.PHY.MAC.FRMPayload != NULL){
 		LWp_xcrypt(p.PHY.MAC.FRMPayload, p.appMessage, p.PHY.MAC.FRMPayload_len,
-				AppSKey_default, p.PHY.MAC.FHDR.devAddr, p.direction, p.PHY.MAC.FHDR.FCnt);
+				n->AppSKey, p.PHY.MAC.FHDR.devAddr, p.direction, p.PHY.MAC.FHDR.FCnt);
 	}
 
 	/* now fill the rawData from these data in the PHY structure (without MIC) */
@@ -173,34 +182,6 @@ LoRaWAN_packet LWp_make(uint8_t* data, uint8_t data_len, LoRaWAN_node* n)
  */
 void LWp_printInfo(LoRaWAN_packet p)
 {
-	if(p.rawData != NULL)
-		pHex_tit("Packet rawData: ", p.rawData, p.rawData_len);
-	printf("\n");
-
-	/////////////////////////////////////////// PHY payload
-	printf("MHDR: %.2x\n", p.PHY.MHDR);
-	pHex_tit("devAddr: ", p.PHY.MAC.FHDR.devAddr, SIZE_DEVADDR);
-	printf("FCtrl: %.2x\n", p.PHY.MAC.FHDR.FCtrl);
-	printf("FCnt: %d\n", p.PHY.MAC.FHDR.FCnt);
-	if(p.PHY.MAC.FHDR.FOpts != NULL)
-		pHex_tit("FOpts:", p.PHY.MAC.FHDR.FOpts, p.PHY.MAC.FHDR.FOpts_len);
-	printf("FPort: %.2x\n", p.PHY.MAC.FPort);
-
-	/* message */
-	if(p.PHY.MAC.FRMPayload != NULL){
-		pHex_tit("message (encrypted):", p.PHY.MAC.FRMPayload, p.PHY.MAC.FRMPayload_len);
-	}
-	if(p.appMessage != NULL){
-		pHex_tit("message (decrypted):", p.appMessage, p.appMessage_len);
-	}
-
-	pHex_tit("MIC: ", p.PHY.MIC, SIZE_MIC);
-
-	/////////////////////////////////////////// other
-	printf("\n");
-	printf("adaptive data rate:  %x\n", p.adr);
-	printf("ack: %x\n", p.ack);
-
 	printf("Message type: ");
 	switch(p.Mtype)
 	{
@@ -229,9 +210,41 @@ void LWp_printInfo(LoRaWAN_packet p)
 			printf("Proprietary\n");
 			break;
 		default:
-			printf("Unknown\n");
+			printf("Unknown: %X\n", p.Mtype);
 	}
 
+	if(p.rawData != NULL)
+		pHex_tit("Packet rawData: ", p.rawData, p.rawData_len);
+
+	/* device*/
+	pHex_tit("Device Address: ", p.PHY.MAC.FHDR.devAddr, SIZE_DEVADDR);
+	printf("FCnt: %u\n", p.PHY.MAC.FHDR.FCnt);
+
+	/* message data */
+	if(p.PHY.MAC.FRMPayload != NULL){
+		pHex_tit("message (encrypted): ", p.PHY.MAC.FRMPayload, p.PHY.MAC.FRMPayload_len);
+	}
+	if(p.appMessage != NULL){
+		pHex_tit("message (decrypted): ", p.appMessage, p.appMessage_len);
+		printf("message (decrypted ASCII): ");
+		pAscii_nl(p.appMessage, p.appMessage_len);
+	}
+
+	printf("MHDR: %.2X; ", p.PHY.MHDR);
+	printf("FCtrl: %.2X; ", p.PHY.MAC.FHDR.FCtrl);
+	printf("FPort: %.2x; ", p.PHY.MAC.FPort);
+	pHex_tit("MIC: ", p.PHY.MIC, SIZE_MIC);
+
+	if(p.PHY.MAC.FHDR.FOpts != NULL)
+		pHex_tit("FOpts: ", p.PHY.MAC.FHDR.FOpts, p.PHY.MAC.FHDR.FOpts_len);
+
+
+	printf("adaptive data rate: ");
+	if(p.adr)	printf("true"); else 	printf("false");
+	printf("; ack: ");
+	if(p.ack)	printf("true");	else	printf("false");
+
+	printf("\r\n\n");
 }
 ////////////////////////////////////////////////////////////////////////////
 /*
