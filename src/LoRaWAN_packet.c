@@ -5,7 +5,6 @@
 #include <stdbool.h>
 #include <math.h>
 
-#include "main.h"
 #include "aes.h"
 #include "cmac.h"
 #include "LoRaWAN_packet.h"
@@ -83,8 +82,6 @@ LoRaWAN_packet LWp_analyze(uint8_t* packet, uint8_t packet_len)
 			break;
 	}
 	
-
-
 	/* appMessage is the same length as the ten of encrypted payload */
 	p.appMessage_len = p.PHY.MAC.FRMPayload_len;
 	p.appMessage = NULL;

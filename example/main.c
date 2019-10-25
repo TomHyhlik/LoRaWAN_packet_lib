@@ -9,6 +9,23 @@
 #include "LinkedList_ByteArray.h"
 
 
+void test_anl_rx_pkt();
+void test_create_tx_pkt();
+
+
+
+//////////////////////////////////////////////////////////
+int main(void)
+{
+	printf("AppStart...........................................\n");
+
+	test_anl_rx_pkt();
+	test_create_tx_pkt();
+
+	printf("AppEND..........................................\n");
+	return EXIT_SUCCESS;
+}
+
 
 //////////////////////////////////////////////////////////
 void test_create_tx_pkt()
@@ -21,7 +38,7 @@ void test_create_tx_pkt()
 
 	/* create the packet structure */
 	uint8_t* message = "01234567890123456789abcdefghijklmnopqrstuvz";
-	LoRaWAN_packet p = LWp_make(message, strlen(message), &n);
+	LoRaWAN_packet p = LWp_make(message, strlen(message), &n, Unconfirmed_Data_Up);
 	LWp_printInfo(p);
 	/* todo */
 
@@ -80,25 +97,9 @@ void test_anl_rx_pkt()
 	
 }
 
-//////////////////////////////////////////////////////////
-int main(void)
-{
-	printf("AppStart...........................................\n");
-
-	test_anl_rx_pkt();
-	// test_create_tx_pkt();
-
-	printf("AppEND..........................................\n");
-	return EXIT_SUCCESS;
-}
-
-
-
 // expected decrypted app messages:
 /* decrypted data: 010E6D7E0500FFFF7E */
 /* decrypted data: 74657374 */
-
-
 /*
 Rx -> LoRaWAN, pktCntr: 13
 RSSI: -33, SNR: 9, length: 22

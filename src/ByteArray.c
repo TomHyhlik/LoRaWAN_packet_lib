@@ -1,15 +1,3 @@
-/*
- * ByteArray.c
- *
- *  Created on: Jul 23, 2018
- *      Author: hyhlik
- *
- *
- *      description:
- *      this source file contains basic functions for byte arrays
- *
- */
-
 #include <stdio.h>
 #include <stdint.h>
 #include <stdlib.h>
@@ -17,7 +5,6 @@
 #include <stdbool.h>
 
 #include "ByteArray.h"
-#include "main.h"
 
 
 

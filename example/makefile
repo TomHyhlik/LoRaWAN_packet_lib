@@ -5,7 +5,7 @@ LIBS = -lm
 CC = gcc
 CFLAGS = #-g -Wall
 
-SRC_DIR = ./src/
+SRC_DIR = ../src/
 BUILD_DIR = ./bin/
 
 .PHONY: default all clean run
@@ -20,17 +20,17 @@ SOURCES = $(wildcard $(SRC_DIR)*.c)
 OBJECTS = $(patsubst $(SRC_DIR)%.c, $(BUILD_DIR)%.o, $(SOURCES))
 
 # compile each source file
-$(BUILD_DIR)%.o: $(SRC_DIR)%.c $(HEADERS)
+$(BUILD_DIR)%.o: $(SRC_DIR)%.c main.c $(HEADERS)
 	$(CC) $(CFLAGS) -c $< -o $@
+
 
 .PRECIOUS: $(TARGET) $(OBJECTS)
 
 
 # the main compilation of all '.o' files
 $(TARGET): $(OBJECTS)
-	$(CC) $(OBJECTS) $(CFLAGS) $(LIBS) -o $(BUILD_DIR)$@
-
-
+	$(CC) $(CFLAGS) -c main.c -o $(BUILD_DIR)main.o -I$(SRC_DIR)
+	$(CC)  $(OBJECTS) ./bin/main.o $(CFLAGS) $(LIBS) -o $(BUILD_DIR)$@ 
 
 
 ##################################################
