@@ -6,7 +6,7 @@ CC = gcc
 CFLAGS = #-g -Wall
 
 SRC_DIR = ../src/
-BUILD_DIR = ./bin/
+BUILD_DIR = ./build/
 
 .PHONY: default all clean run
 
@@ -30,17 +30,17 @@ $(BUILD_DIR)%.o: $(SRC_DIR)%.c main.c $(HEADERS)
 # the main compilation of all '.o' files
 $(TARGET): $(OBJECTS)
 	$(CC) $(CFLAGS) -c main.c -o $(BUILD_DIR)main.o -I$(SRC_DIR)
-	$(CC)  $(OBJECTS) ./bin/main.o $(CFLAGS) $(LIBS) -o $(BUILD_DIR)$@ 
+	$(CC)  $(OBJECTS) $(BUILD_DIR)main.o $(CFLAGS) $(LIBS) -o $(BUILD_DIR)$@ 
 
 
 ##################################################
-### build
+
 all: default
 
-### remove all compiled files
+
 clean:
 	-rm -f $(BUILD_DIR)$(TARGET)
 	-rm -f $(BUILD_DIR)*.o
-### run
+
 run:
-	./bin/binary
+	$(BUILD_DIR)binary
